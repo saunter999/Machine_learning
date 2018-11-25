@@ -16,7 +16,7 @@ function [error_train, error_val] = ...
 
 % Number of training examples
 m = size(X, 1);
-
+theta=zeros(size(X,2),1);
 % You need to return these values correctly
 error_train = zeros(m, 1);
 error_val   = zeros(m, 1);
@@ -52,6 +52,15 @@ error_val   = zeros(m, 1);
 %
 
 % ---------------------- Sample Solution ----------------------
+for i=1:m
+  if i==1
+     theta(1)=y(1);
+  else
+     [theta] = trainLinearReg(X(1:i,:), y(1:i),lambda);
+  end  
+  [error_train(i,1),grad]=linearRegCostFunction(X(1:i,:),y(1:i),theta,0.0); %Be careful to set lambda to zero when 'true' cost/error is what we want to investigate problems of underfitting and overfitting. 
+  [error_val(i,1),grad]=linearRegCostFunction(Xval,yval,theta,0.0);
+end
 
 
 

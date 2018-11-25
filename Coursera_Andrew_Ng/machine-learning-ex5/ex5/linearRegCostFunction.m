@@ -7,7 +7,6 @@ function [J, grad] = linearRegCostFunction(X, y, theta, lambda)
 
 % Initialize some useful values
 m = length(y); % number of training examples
-
 % You need to return the following variables correctly 
 J = 0;
 grad = zeros(size(theta));
@@ -20,15 +19,18 @@ grad = zeros(size(theta));
 %
 
 
+%Computing the cost function
+%Normal part
+h=X*theta;
+J=1./(2.0*m)*sum( (h-y).^2);
+%Adding regularized part
+J=J+lambda/(2.0*m)*sum( theta(2:end).^2 );
 
-
-
-
-
-
-
-
-
+%Computing the grad vector
+%Normal part
+grad=1.0/m*X'*(h-y);
+%Adding regularized part
+grad(2:end)=grad(2:end)+lambda/m*theta(2:end);
 
 % =========================================================================
 

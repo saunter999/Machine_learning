@@ -100,6 +100,8 @@ pause;
 %% =========== Part 5: Learning Curve for Linear Regression =============
 %  Next, you should implement the learningCurve function. 
 %
+fprintf('Program paused. Press enter to continue.\n');
+pause;
 %  Write Up Note: Since the model is underfitting the data, we expect to
 %                 see a graph with "high bias" -- Figure 3 in ex5.pdf 
 %
@@ -216,5 +218,27 @@ for i = 1:length(lambda_vec)
             lambda_vec(i), error_train(i), error_val(i));
 end
 
+fprintf('Program paused. Press enter to continue.\n');
+pause;
+%%=========Part 9:Test error with lambda=3=================
+lambda=3;
+theta=trainLinearReg(X_poly,y,lambda);
+error_test=linearRegCostFunction(X_poly_test,ytest,theta,0.0);
+fprintf('lambda\t\tTest Error\n');
+fprintf('%f\t%f\n\n',lambda,error_test);
+fprintf('Program paused. Press enter to continue.\n');
+pause;
+%%=========Part 10:Learning Curve using randomly selectd training examples for Polynomial Regression with lambda=0.01=================
+lambda = 0.01;
+clf;
+[error_train, error_val] = ...
+    learningCurve(X_poly, y, X_poly_val, yval, lambda);
+plot(1:m, error_train, 1:m, error_val);
+
+title(sprintf('Polynomial Regression Learning Curve (lambda = %f)', lambda));
+xlabel('Number of training examples')
+ylabel('Error')
+axis([0 13 0 100])
+legend('Train', 'Cross Validation')
 fprintf('Program paused. Press enter to continue.\n');
 pause;
