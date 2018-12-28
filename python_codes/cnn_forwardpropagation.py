@@ -20,8 +20,12 @@ class conn_cc:
 	for i in range(1,self.L):
 	    s_o=self.struc[i]
 	    s_i=self.struc[i-1]	
-	    self.W.append( np.random.rand(s_o,s_i+1)-0.5 ) ### added 1 due to the bias unit
-	#print self.W
+	    if i==1:
+	      self.W.append(loadtxt('Theta1.txt'))
+	    else:
+	      self.W.append(loadtxt('Theta2.txt'))
+	   # self.W.append( np.random.rand(s_o,s_i+1)-0.5 ) ### added 1 due to the bias unit
+	#print (self.W)
 
     def printinfo(self):
           print ("~~~~~~~~~~INFO of Fully connected neural network~~~~~~~~~~") 
@@ -29,7 +33,7 @@ class conn_cc:
 	  print ("# of units across the network starting from the input layer:",self.struc)
 	  print ("# of features or units of the input layer:",self.struc[0]) 
 	  print ("# of units of the output layer:",self.struc[-1]) 
-	  print ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~") 
+	  print ("~~~~~~~~~~End of INFO~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~") 
 
     def Forward_prop(self):
     	bias=ones((self.nsample,1))
@@ -40,28 +44,33 @@ class conn_cc:
 	    else:
 	       sb=np.concatenate((bias,out),axis=1)
 	    z=np.dot(sb,self.W[i].transpose())
-	    print 'z=',z
+	    print ('z=',z)
 	    out=self.activation(z,self.activ)
-	    print("Forwarding propagating passing through layer",i+1)
+	    print("Forward propagating passing through layer",i+1)
 	    print ("The shape of resulting output",out.shape)
-	print out
+	return argmax(out,axis=1)+1
+
 
     def activation(self,z,activ):
         if activ=='sigmoid':
 	   return 1.0/(1.0+exp(-z))
 
 
+
        
         
 
 if __name__=="__main__":
-	nfeature=2
-	nout=6
-	nsample=20
-	X=np.random.rand(nsample,nfeature)-0.5
-	print X
- 	Y=np.random.rand(nsample,nout)
-        struc=[nfeature,6,9,nout]
+	X=loadtxt("Xinp.txt")
+	Y=loadtxt("Yout.txt")
+	nfeature=X.shape[1]
+	nout=int( max(Y))
+	nsample=X.shape[0]
+	print("nfeature=",nfeature,"nout=",nout,"nsample",nsample)
+        struc=[nfeature,25,nout]
 	mycnn=conn_cc(struc,X,Y,'sigmoid')
 	mycnn.printinfo()
-	mycnn.Forward_prop()
+	ypred=mycnn.Forward_prop()
+	print('ypred=',ypred)
+	print ("Accuracy=",sum(ypred==Y)/float(nsample) )
+	ypred=Y
