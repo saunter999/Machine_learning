@@ -73,8 +73,13 @@ class conn_cc:
 	for idx,y in enumerate(self.Y):
 	    self.Yvec[idx,int(y)-1]=1
 #	    print y,self.Yvec[idx,:]
-	cost=-1.0/self.nsample*np.trace( np.dot( log( self.Forward_prop(X) ),self.Yvec.transpose())+np.dot( log(1.0-self.Forward_prop(X)),(1.0-self.Yvec).transpose()) )
-        print (cost) 
+	h=self.Forward_prop(X)
+	cost=-1.0/self.nsample*np.trace( np.dot(log(h),self.Yvec.transpose())+np.dot( log(1.0-h),(1.0-self.Yvec).transpose()) )
+	#cost=0.0
+	#h=self.Forward_prop(X)
+	#for i in range(self.nsample):
+	#    cost+=-1.0/self.nsample*( np.dot( log(h)[i,:],self.Yvec.transpose()[:,i])+np.dot( log(1.0-h)[i,:],(1.0-self.Yvec).transpose()[:,i]) )
+        print ('cost=',cost) 
 
     def grad_eval(self):
     	print(1)
