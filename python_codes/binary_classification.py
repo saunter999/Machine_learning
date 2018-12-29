@@ -30,23 +30,23 @@ def preview(df):
 
   
 class LogRegress:
-  def __init__(self,X,Y,Nit,\
-               tol,alpha=0.3,C=0.0,nfflag=True,costflag=True):
+  def __init__(self,X,Y,Nit,tol,alpha=0.3,C=0.0,nfflag=True,costflag=True):
     """
-    X is the training data with shape(nsample,nfeatures); Y is the corresponding 
-    label with shape(nsample,1).
+    X is the training data with shape(nsample,nfeatures); 
+    Y is the corresponding label with shape (nsample,1).
     Nit-maximum number of iterations
     tol-tolerance
     alpha-learning rate
     C-regularization parameter (L2 norm)
     nfflag: flag for normalizing features
+    costflag: flag for computing cost or not
     """
     self.X, self.Y, self.Nit, self.tol, self.alpha, self.C, self.nfflag, self.costflag= dp(X),dp(Y),dp(Nit),dp(tol),\
     dp(alpha),dp(C),dp(nfflag),dp(costflag)
     print("~~~~~~~~~~~hyperparameters info~~~~~~~~~~~~")
-    print("Maximum_iter=",self.Nit)
+    print("Maximum_iter =",self.Nit)
     print("tolerance=",self.tol)
-    print("learning rate=",self.alpha)
+    print("learning rate for customized minimization algorthim=",self.alpha)
     print("regularization parameter=",self.C)
     print("Flag for normalizing features:",self.nfflag)
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
@@ -63,10 +63,17 @@ class LogRegress:
       if method=='custom':
          self.theta=self.fmin_custom(self.theta,self.grad_eval,self.alpha)
       if method=='BFGS':
-         self.theta=minimize(self.costfunction,(self.theta).reshape(-1,),method='BFGS',jac=self.grad_eval).x.reshape(-1,1)
-	
-
-        
+         res=minimize(self.costfunction,(self.theta).reshape(-1,),method='BFGS',jac=self.grad_eval,\
+	 tol=self.tol,options={'disp':True,'maxiter':self.Nit})
+	 self.theta=res.x.reshape(-1,1)
+	 print("Optimization status",res.message)
+	 print("# of iterations=",res.nit)
+      if method=='Newton-CG':
+         res=minimize(self.costfunction,(self.theta).reshape(-1,),method='Newton-CG',\
+	 jac=self.grad_eval,tol=self.tol,options={'disp':True,'maxiter':self.Nit}) 
+	 self.theta=res.x.reshape(-1,1)
+	 print("Optimization status",res.message)
+	 print("# of iterations=",res.nit)
   def grad_eval(self,theta):
       theta=theta.reshape(-1,1)
       linarg=np.dot(self.Xb,theta)
@@ -84,12 +91,8 @@ class LogRegress:
            return theta
            break
         theta -= grad*learning_rate
-        if self.costflag:
-           i_cost= self.costfunction(self.theta) 
-          # print(i,'cost=',i_cost,type(i_cost))
-           self.cost.append(i_cost)
+	if self.costflag:self.costfunction(theta) 
       return theta
-    #print(len(self.cost))  
     
   def Normalfeature(self):
     print("~~~~~~Performing feature normalizing~~~~~~~~")
@@ -110,6 +113,9 @@ class LogRegress:
                            +self.C/(2*self.nsample)*(LA.norm(self.theta)-\
                            self.theta[0]**2) ##Adding regularized part to cost function
      
+     if self.costflag:
+   	i_cost= np.asscalar(cost) 
+   	self.cost.append(i_cost)
      return np.asscalar(cost)
      
         
@@ -125,7 +131,6 @@ class LogRegress:
         nf=xn.shape[1]
         for i in range(nf):
            xn[:,i]=(xn[:,i]-self.mu[i])/self.std[i]
-   # print(  param[0]+np.dot(xn,param[1:])  )
     z= param[0]+np.dot(xn,param[1:]) 
     return self.logisticfunc(z) 
   
@@ -171,10 +176,11 @@ if __name__=="__main__":
     figure(1)
     preview(df)
    
-    X,Y,Nit,tol=df.values[:,:-1],df.values[:,-1],600,0.01 
+    X,Y,Nit,tol=df.values[:,:-1],df.values[:,-1],600,1e-6 
     mylogReg=LogRegress(X,Y,Nit,tol,C=0.01)
-    mtd='BFGS'
-    #mylogReg.training(method='custom')
+    #mtd='BFGS' 
+    mtd='custom' 
+   # mtd='Newton-CG'
     print("~~~~~Training using "+mtd+"~~~~~")
     mylogReg.training(method=mtd)
     

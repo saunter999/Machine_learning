@@ -9,5 +9,5 @@ def grad(x):
 def fun_grad(x):
     return (x[0]-2)**2+(x[1])**2,array([2*(x[0]-2),2*x[1]])
 if __name__=="__main__":
-	print minimize(fun, array([-1,1]), method='BFGS', jac=grad).x
+	print minimize(fun, array([-1,1]), method='BFGS', jac=grad).nit
 	print minimize(fun_grad, array([-1,1]), method='BFGS', jac=True).x
