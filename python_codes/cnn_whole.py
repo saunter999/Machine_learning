@@ -4,10 +4,11 @@ import numpy as np
 from scipy import *
 from pylab import *
 from copy import deepcopy as dp
+from scipy.optimize import minimize
 import time
 
 class conn_cc:
-    def __init__(self,struc,X,Y,nout,C=0.0,activ_type=None):
+    def __init__(self,struc,X,Y,nout,tol,Nit,C=0.0,activ_type=None,initw=None):
     	"""
 	Initialization of the network structure of the fully
 	connected neural network
@@ -19,20 +20,22 @@ class conn_cc:
 	"""
 	self.struc=struc
 	self.L=len(self.struc)
-	self.X,self.Y,self.nout,self.C=dp(X),dp(Y),dp(nout),dp(C)
+	self.X,self.Y,self.nout,self.C,self.tol,self.Nit=dp(X),dp(Y),dp(nout),dp(C),dp(tol),dp(Nit)
 	self.nsample=self.X.shape[0]
 	self.Yvec=zeros((nsample,self.nout))
-	self.activ=activ_type
+	self.activ,self.initw = activ_type,initw
 	self.W=[] ##weights of the whole network
-	for i in range(1,self.L):
-	    s_o=self.struc[i]
-	    s_i=self.struc[i-1]	
-	    if i==1:
-	      self.W.append(loadtxt('Theta1.txt'))
-	    else:
-	      self.W.append(loadtxt('Theta2.txt'))
-	    #self.W.append( np.random.rand(s_o,s_i+1)) ### added 1 due to the bias unit
-	self.unrollWeight(self.W)
+	if self.initw=='Random':
+	    print("Random initializing weights across the neural network")
+	    for i in range(1,self.L):
+	      s_o=self.struc[i]
+	      s_i=self.struc[i-1]	
+	      self.W.append( np.random.rand(s_o,s_i+1)) ### added 1 due to the bias unit
+	else:
+	    print("Preloading weights across the neural network")
+	    self.W.append(loadtxt('Theta1.txt'))
+	    self.W.append(loadtxt('Theta2.txt'))
+	self.W=self.unrollWeight(self.W)
 
     def printinfo(self):
           print ("~~~~~~~~~~INFO of Fully connected neural network~~~~~~~~~~") 
@@ -45,18 +48,53 @@ class conn_cc:
 
     def unrollWeight(self,wgt):
     	nn_params=[w.reshape(-1,) for w in wgt]
-	#print nn_params[0].shape,nn_params[1].shape
 	nn_params=np.concatenate(nn_params)
-	#print nn_params,nn_params.shape
+	
 	return nn_params
 
-    def Train(self):
-	return self.W
+    def rollingWeight(self,params):
+        n=0
+	Weight=[]
+	for i in range(1,self.L):
+	  s_o=self.struc[i]
+	  s_i=self.struc[i-1]	
+	  wlen=s_o*(s_i+1)
+	  Weight.append(params[n:n+wlen].reshape(s_o,s_i+1))
+	  n+=wlen
+        for w in Weight:
+	    print w.shape
+	return Weight
 
+    def Train(self,method):
+        return self.W
+	if method=='BFGS':
+	   nn_parms=self.unrollWeight(self.W)
+	   res=minimize(self.costfunc,nn_params,method='BFGS',jac=self.grad_eval,\
+		        tol=self.tol,options={'disp':True,'maxiter':self.Nit})
+	   self.W=res.x.reshape(-1,1)
+	   print("Optimization status",res.message)
+	   print("# of iterations=",res.nit)
 
-    def Predict(self,weight,X):
-        out=self.Forward_prop(weight,X)
-	return argmax(out,axis=1)+1
+    def grad_eval(self,params):
+        return 1
+
+    def costfunc(self,params):
+    	cost=0.0
+	if type(params[0])!=np.ndarray:
+	   print("Rolling back params to calculate costs")
+	   weight=self.rollingWeight(params)
+	else:
+	   print("No need to roll back params to calculate costs")
+	   weight=params
+	for idx,y in enumerate(self.Y):
+	    self.Yvec[idx,int(y)-1]=1
+	h=self.Forward_prop(weight,self.X)
+	cost=-1.0/self.nsample*np.trace( np.dot(log(h),self.Yvec.transpose())+np.dot( log(1.0-h),(1.0-self.Yvec).transpose()) )
+
+	#adding regularization part 
+	for w in weight:
+	    cost+=self.C/(2.0*self.nsample)*sum(w[:,1:]**2)
+        print ('cost=',cost) 
 
     def Forward_prop(self,weight,X):
     	bias=ones((self.nsample,1))
@@ -72,36 +110,25 @@ class conn_cc:
 	    print ("The shape of resulting output",out.shape)
 	return out
 
+    def Predict(self,params,X):
+	if type(params[0])!=np.ndarray:
+	   print("Rolling back params to predict label")
+	   weight=self.rollingWeight(params)
+	else:
+	   print("No need to roll back params to predict label")
+	   weight=params
+        out=self.Forward_prop(weight,X)
+	return argmax(out,axis=1)+1
 
-    def activation(self,z,activ):
-        if activ=='sigmoid':
-	   return 1.0/(1.0+exp(-z))
-
-    def costfunc(self,weight,X):
-    	cost=0.0
-	for idx,y in enumerate(self.Y):
-	    self.Yvec[idx,int(y)-1]=1
-#	    print y,self.Yvec[idx,:]
-	h=self.Forward_prop(weight,X)
-	cost=-1.0/self.nsample*np.trace( np.dot(log(h),self.Yvec.transpose())+np.dot( log(1.0-h),(1.0-self.Yvec).transpose()) )
-
-	#adding regularization part 
-	for w in weight:
-	    cost+=self.C/(2.0*self.nsample)*sum(w[:,1:]**2)
-        print ('cost=',cost) 
-
-    def grad_eval(self):
-    	print(1)
-
-
-    def Back_prop(self):
-        print(1)
      
     def score(self,weight,X,Y):
         ypred=self.Predict(weight,X)
 	return sum(ypred==Y)/float(nsample) 
        
         
+    def activation(self,z,activ):
+        if activ=='sigmoid':
+	   return 1.0/(1.0+exp(-z))
 
 if __name__=="__main__":
         t1=time.time()
@@ -111,12 +138,14 @@ if __name__=="__main__":
 	nout=int( max(Y))
 	nsample=X.shape[0]
 	print("nfeature=",nfeature,"nout=",nout,"nsample",nsample)
-        struc=[nfeature,25,nout]
-	mycnn=conn_cc(struc,X,Y,nout,C=1.0,activ_type='sigmoid')
+        struc=[nfeature,25,19,nout]
+	#mycnn=conn_cc(struc,X,Y,nout,0.01,1,C=1.0,activ_type='sigmoid')
+	mycnn=conn_cc(struc,X,Y,nout,0.01,1,C=1.0,activ_type='sigmoid',initw='Random')
 	mycnn.printinfo()
 	#exit()
-	mywgt=mycnn.Train()
-	mycnn.costfunc(mywgt,X)
+	mtd='BFGS'
+	mywgt=mycnn.Train(method=mtd)
+	mycnn.costfunc(mywgt)
 	ypred=mycnn.Predict(mywgt,X)
 	score=mycnn.score(mywgt,X,Y)
 	print('ypred=',ypred)
