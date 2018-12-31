@@ -15,12 +15,18 @@ class conn_cc:
 	struc-List consisting of # of neuron units across the neural network
 	X-input data,shape (nsample,nfeature)
 	Y-labels,shape (nsample,1)
+	nout- number of labels in the output
+	tol- tolerance in the minimization process
+	Nit- maximum number of iteration in the minimization process
 	C-regularization parameter
 	activ_type:activation function used in nn
+	initw: way of initializing weights across nn
 	"""
 	self.struc=struc
 	self.L=len(self.struc)
 	self.X,self.Y,self.nout,self.C,self.tol,self.Nit=dp(X),dp(Y),dp(nout),dp(C),dp(tol),dp(Nit)
+#	print self.Nit
+#	exit()
 	self.nsample=self.X.shape[0]
 	self.Yvec=zeros((nsample,self.nout))
 	for idx,y in enumerate(self.Y):
@@ -46,13 +52,13 @@ class conn_cc:
 	  print ("# of units across the network starting from the input layer:",self.struc)
 	  print ("# of features or units of the input layer:",self.struc[0]) 
 	  print ("# of units of the output layer:",self.struc[-1]) 
+	  print("tol=",self.tol,'Nit=',self.Nit,'Regularization parameter=',self.C)
 	  print ("~~~~~~~~~~End of INFO~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~") 
 
 
     def unrollWeight(self,wgt):
     	nn_params=[w.reshape(-1,) for w in wgt]
 	nn_params=np.concatenate(nn_params)
-	
 	return nn_params
 
     def rollingWeight(self,params):
@@ -66,14 +72,41 @@ class conn_cc:
 	  n+=wlen
 	return Weight
 
+    def checkingGradient(self):
+        print ("~~~Checking gradient calculation between finite difference and backprop~~~")
+        params=self.unrollWeight(self.W)
+        nW=len(params)
+	print ("Total number of parameter across nn=",nW)
+        pert=zeros(params.shape)
+	numgrad=zeros(params.shape)
+	e=1e-4
+	nevl=10
+	bpgrad=self.grad_eval(self.W)
+	for i in range(nevl):
+	    pert[i]=e
+	    cost1=self.costfunc(params+pert)
+	    cost2=self.costfunc(params-pert)
+	    numgrad[i]=(cost1-cost2)/(2.0*e)
+	    pert[i]=0.0
+	diff=0.0
+	print('--bpgrad---numgrad--')
+	for i in range(nevl):
+	    print bpgrad[i],numgrad[i]
+	    diff+=abs(bpgrad[i]-numgrad[i])
+	print("Total abs difference between finite difference and backprop=",diff ,"for first "+str(nevl)+' gradients')
+
     def Train(self,method):
 	if method=='BFGS':
 	   nn_params=self.unrollWeight(self.W)
-	   res=minimize(self.costfunc,nn_params,method='BFGS',jac=self.grad_eval,\
+#	   res=minimize(self.costfunc,nn_params,method='BFGS',jac=self.grad_eval,\
+#		        tol=self.tol,options={'disp':True,'maxiter':self.Nit})
+	   res=minimize(self.costfunc,nn_params,method='L-BFGS-B',jac=self.grad_eval,\
 		        tol=self.tol,options={'disp':True,'maxiter':self.Nit})
 	   self.W=self.rollingWeight(res.x)
 	   print("Optimization status",res.message)
 	   print("# of iterations=",res.nit)
+
+	   return self.W
 
     def grad_eval(self,params):
 	if type(params[0])!=np.ndarray:
@@ -82,12 +115,10 @@ class conn_cc:
 	else:
 	   print("No need to roll back params into array to calculate gradient")
 	   weight=params
-	w_grad=[]
-	for w in weight:
-	    w_grad.append( zeros(w.shape))
-	#for i in range(self.nsample):
-	for i in range(1):
-	  ##1.performing forward first
+	w_grad=0.0
+	print('~~~~~~~evaluating gradient using backprop~~~~~~~~~~~')
+	for i in range(self.nsample):
+	  ##1.performing forwardprop first
           source=X[i,:]
 	  a=[source]
 	  ab=[np.concatenate( (array([1]),source),axis=0)]
@@ -100,7 +131,7 @@ class conn_cc:
 	    out=self.activation(z,self.activ)
 	    a.append(out)
 	    ab.append(np.concatenate( (array([1]),out),axis=0))
-	  ##2.performing backward to calculate delta
+	  ##2.performing backprop to calculate delta
 	  Delta=[]
 	  for j in range(self.L,1,-1):
 	      if j==self.L:  
@@ -110,23 +141,35 @@ class conn_cc:
 		  dta=dta[1:]
               Delta.append(dta)
 	  Delta=Delta[::-1]
-	  print Delta
+	  ##3.tensor product between delta and ab(activation with bias) to get gradient
+	  w_grad_i=[]
+	  for j in range(len(Delta)):
+#	  print Delta[0].shape,ab[0].shape
+#	  print len(ab),len(Delta)
+             res=np.outer(Delta[j],ab[j])
+	     res[:,1:]+=self.C*weight[j][:,1:]/self.nsample  #Adding regularization part
+	     w_grad_i.append(res)
+	  w_grad+=self.unrollWeight(w_grad_i)
+	w_grad*=1./self.nsample
+	print('~~~~~~~finishing gradient using backprop~~~~~~~~~~~')
+	return w_grad
+
 
     def costfunc(self,params):
     	cost=0.0
 	if type(params[0])!=np.ndarray:
-	   print("Rolling back params to into array calculate costs")
+	   print("Rolling back params to into array to calculate costs")
 	   weight=self.rollingWeight(params)
 	else:
 	   print("No need to roll back params into array to calculate costs")
 	   weight=params
 	h=self.Forward_prop(weight,self.X)
 	cost=-1.0/self.nsample*np.trace( np.dot(log(h),self.Yvec.transpose())+np.dot( log(1.0-h),(1.0-self.Yvec).transpose()) )
-
 	#adding regularization part 
 	for w in weight:
 	    cost+=self.C/(2.0*self.nsample)*sum(w[:,1:]**2)
         print ('cost=',cost) 
+	return np.asscalar(cost) 
 
     def Forward_prop(self,weight,X):
     	bias=ones((self.nsample,1))
@@ -138,8 +181,8 @@ class conn_cc:
 	       sb=np.concatenate((bias,out),axis=1)
 	    z=np.dot(sb,weight[i].transpose())
 	    out=self.activation(z,self.activ)
-	    print("Forward propagating passing through layer",i+1)
-	    print ("The shape of resulting output",out.shape)
+	    #print("Forward propagating passing through layer",i+1)
+	    #print ("The shape of resulting output",out.shape)
 	return out
 
     def Predict(self,params,X):
@@ -170,11 +213,11 @@ if __name__=="__main__":
 	nout=int( max(Y))
 	nsample=X.shape[0]
 	print("nfeature=",nfeature,"nout=",nout,"nsample",nsample)
-        struc=[nfeature,25,19,16,nout]
+        struc=[nfeature,25,nout]
 	#mycnn=conn_cc(struc,X,Y,nout,0.01,1,C=1.0,activ_type='sigmoid')
-	mycnn=conn_cc(struc,X,Y,nout,0.01,1,C=1.0,activ_type='sigmoid',initw='Random')
+	mycnn=conn_cc(struc,X,Y,nout,1e-5,50,C=1.0,activ_type='sigmoid',initw='Random')
 	mycnn.printinfo()
-	#exit()
+	mycnn.checkingGradient()
 	mtd='BFGS'
 	mywgt=mycnn.Train(method=mtd)
 	mycnn.costfunc(mywgt)
