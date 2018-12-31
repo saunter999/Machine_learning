@@ -25,8 +25,6 @@ class conn_cc:
 	self.struc=struc
 	self.L=len(self.struc)
 	self.X,self.Y,self.nout,self.C,self.tol,self.Nit=dp(X),dp(Y),dp(nout),dp(C),dp(tol),dp(Nit)
-#	print self.Nit
-#	exit()
 	self.nsample=self.X.shape[0]
 	self.Yvec=zeros((nsample,self.nout))
 	for idx,y in enumerate(self.Y):
@@ -110,10 +108,8 @@ class conn_cc:
 
     def grad_eval(self,params):
 	if type(params[0])!=np.ndarray:
-	   print("Rolling back params into array to calculate gradient")
 	   weight=self.rollingWeight(params)
 	else:
-	   print("No need to roll back params into array to calculate gradient")
 	   weight=params
 	w_grad=0.0
 	print('~~~~~~~evaluating gradient using backprop~~~~~~~~~~~')
@@ -135,7 +131,7 @@ class conn_cc:
 	  Delta=[]
 	  for j in range(self.L,1,-1):
 	      if j==self.L:  
-	          dta=a[-1]-self.Yvec[i]    #print a[-1].shape,self.Yvec[i].shape#delta=a[-1]-self.Yvec
+	          dta=a[-1]-self.Yvec[i]    
 	      else:
 	          dta=np.dot(weight[j-1].transpose(),Delta[-1])*ab[j-1]*(1.0-ab[j-1]) ##assuming sigmoid activation func  here
 		  dta=dta[1:]
@@ -144,8 +140,6 @@ class conn_cc:
 	  ##3.tensor product between delta and ab(activation with bias) to get gradient
 	  w_grad_i=[]
 	  for j in range(len(Delta)):
-#	  print Delta[0].shape,ab[0].shape
-#	  print len(ab),len(Delta)
              res=np.outer(Delta[j],ab[j])
 	     res[:,1:]+=self.C*weight[j][:,1:]/self.nsample  #Adding regularization part
 	     w_grad_i.append(res)
@@ -158,17 +152,15 @@ class conn_cc:
     def costfunc(self,params):
     	cost=0.0
 	if type(params[0])!=np.ndarray:
-	   print("Rolling back params to into array to calculate costs")
 	   weight=self.rollingWeight(params)
 	else:
-	   print("No need to roll back params into array to calculate costs")
 	   weight=params
 	h=self.Forward_prop(weight,self.X)
 	cost=-1.0/self.nsample*np.trace( np.dot(log(h),self.Yvec.transpose())+np.dot( log(1.0-h),(1.0-self.Yvec).transpose()) )
 	#adding regularization part 
 	for w in weight:
 	    cost+=self.C/(2.0*self.nsample)*sum(w[:,1:]**2)
-        print ('cost=',cost) 
+	print ('cost=',cost) 
 	return np.asscalar(cost) 
 
     def Forward_prop(self,weight,X):
@@ -181,16 +173,12 @@ class conn_cc:
 	       sb=np.concatenate((bias,out),axis=1)
 	    z=np.dot(sb,weight[i].transpose())
 	    out=self.activation(z,self.activ)
-	    #print("Forward propagating passing through layer",i+1)
-	    #print ("The shape of resulting output",out.shape)
 	return out
 
     def Predict(self,params,X):
 	if type(params[0])!=np.ndarray:
-	   print("Rolling back params into array to predict label")
 	   weight=self.rollingWeight(params)
 	else:
-	   print("No need to roll back params into array to predict label")
 	   weight=params
         out=self.Forward_prop(weight,X)
 	return argmax(out,axis=1)+1
@@ -213,15 +201,17 @@ if __name__=="__main__":
 	nout=int( max(Y))
 	nsample=X.shape[0]
 	print("nfeature=",nfeature,"nout=",nout,"nsample",nsample)
-        struc=[nfeature,25,nout]
+        struc=[nfeature,25,20,nout]
 	#mycnn=conn_cc(struc,X,Y,nout,0.01,1,C=1.0,activ_type='sigmoid')
 	mycnn=conn_cc(struc,X,Y,nout,1e-5,50,C=1.0,activ_type='sigmoid',initw='Random')
 	mycnn.printinfo()
+	score=mycnn.score(mycnn.W,X,Y)
+	print ("Before training,Accuracy=",score )
+
 	mycnn.checkingGradient()
 	mtd='BFGS'
 	mywgt=mycnn.Train(method=mtd)
-	mycnn.costfunc(mywgt)
 	score=mycnn.score(mywgt,X,Y)
-	print ("Accuracy=",score )
+	print ("After training,Accuracy=",score )
 	t2=time.time()
 	print('running time:',t2-t1)
