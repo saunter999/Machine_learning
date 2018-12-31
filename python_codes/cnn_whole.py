@@ -7,16 +7,19 @@ from copy import deepcopy as dp
 import time
 
 class conn_cc:
-    def __init__(self,struc,X,Y,nout,activ_type):
+    def __init__(self,struc,X,Y,nout,C=0.0,activ_type=None):
     	"""
 	Initialization of the network structure of the fully
 	connected neural network
+	struc-List consisting of # of neuron units across the neural network
 	X-input data,shape (nsample,nfeature)
 	Y-labels,shape (nsample,1)
+	C-regularization parameter
+	activ_type:activation function used in nn
 	"""
 	self.struc=struc
 	self.L=len(self.struc)
-	self.X,self.Y,self.nout=dp(X),dp(Y),dp(nout)
+	self.X,self.Y,self.nout,self.C=dp(X),dp(Y),dp(nout),dp(C)
 	self.nsample=self.X.shape[0]
 	self.Yvec=zeros((nsample,self.nout))
 	self.activ=activ_type
@@ -29,7 +32,7 @@ class conn_cc:
 	    else:
 	      self.W.append(loadtxt('Theta2.txt'))
 	    #self.W.append( np.random.rand(s_o,s_i+1)) ### added 1 due to the bias unit
-	#print (self.W)
+	self.unrollWeight(self.W)
 
     def printinfo(self):
           print ("~~~~~~~~~~INFO of Fully connected neural network~~~~~~~~~~") 
@@ -40,15 +43,22 @@ class conn_cc:
 	  print ("~~~~~~~~~~End of INFO~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~") 
 
 
+    def unrollWeight(self,wgt):
+    	nn_params=[w.reshape(-1,) for w in wgt]
+	#print nn_params[0].shape,nn_params[1].shape
+	nn_params=np.concatenate(nn_params)
+	#print nn_params,nn_params.shape
+	return nn_params
+
     def Train(self):
 	return self.W
 
 
-    def Predict(self,X):
-        out=self.Forward_prop(X)
+    def Predict(self,weight,X):
+        out=self.Forward_prop(weight,X)
 	return argmax(out,axis=1)+1
 
-    def Forward_prop(self,X):
+    def Forward_prop(self,weight,X):
     	bias=ones((self.nsample,1))
         source=X
     	for i in range(self.L-1):
@@ -56,10 +66,8 @@ class conn_cc:
 	       sb=np.concatenate( (bias,source),axis=1)
 	    else:
 	       sb=np.concatenate((bias,out),axis=1)
-	    z=np.dot(sb,self.W[i].transpose())
-	#    print ('z=',z)
+	    z=np.dot(sb,weight[i].transpose())
 	    out=self.activation(z,self.activ)
-	#    print ('out=',out)
 	    print("Forward propagating passing through layer",i+1)
 	    print ("The shape of resulting output",out.shape)
 	return out
@@ -69,16 +77,17 @@ class conn_cc:
         if activ=='sigmoid':
 	   return 1.0/(1.0+exp(-z))
 
-    def costfunc(self,param,X):
+    def costfunc(self,weight,X):
+    	cost=0.0
 	for idx,y in enumerate(self.Y):
 	    self.Yvec[idx,int(y)-1]=1
 #	    print y,self.Yvec[idx,:]
-	h=self.Forward_prop(X)
+	h=self.Forward_prop(weight,X)
 	cost=-1.0/self.nsample*np.trace( np.dot(log(h),self.Yvec.transpose())+np.dot( log(1.0-h),(1.0-self.Yvec).transpose()) )
-	#cost=0.0
-	#h=self.Forward_prop(X)
-	#for i in range(self.nsample):
-	#    cost+=-1.0/self.nsample*( np.dot( log(h)[i,:],self.Yvec.transpose()[:,i])+np.dot( log(1.0-h)[i,:],(1.0-self.Yvec).transpose()[:,i]) )
+
+	#adding regularization part 
+	for w in weight:
+	    cost+=self.C/(2.0*self.nsample)*sum(w[:,1:]**2)
         print ('cost=',cost) 
 
     def grad_eval(self):
@@ -88,8 +97,8 @@ class conn_cc:
     def Back_prop(self):
         print(1)
      
-    def score(self,X,Y):
-        ypred=self.Predict(X)
+    def score(self,weight,X,Y):
+        ypred=self.Predict(weight,X)
 	return sum(ypred==Y)/float(nsample) 
        
         
@@ -103,12 +112,13 @@ if __name__=="__main__":
 	nsample=X.shape[0]
 	print("nfeature=",nfeature,"nout=",nout,"nsample",nsample)
         struc=[nfeature,25,nout]
-	mycnn=conn_cc(struc,X,Y,nout,'sigmoid')
+	mycnn=conn_cc(struc,X,Y,nout,C=1.0,activ_type='sigmoid')
 	mycnn.printinfo()
-	myWgt=mycnn.Train()
-	mycnn.costfunc(myWgt,X)
-	ypred=mycnn.Predict(X)
-	score=mycnn.score(X,Y)
+	#exit()
+	mywgt=mycnn.Train()
+	mycnn.costfunc(mywgt,X)
+	ypred=mycnn.Predict(mywgt,X)
+	score=mycnn.score(mywgt,X,Y)
 	print('ypred=',ypred)
 	print ("Accuracy=",score )
 	t2=time.time()
