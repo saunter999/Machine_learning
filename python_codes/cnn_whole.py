@@ -23,19 +23,22 @@ class conn_cc:
 	self.X,self.Y,self.nout,self.C,self.tol,self.Nit=dp(X),dp(Y),dp(nout),dp(C),dp(tol),dp(Nit)
 	self.nsample=self.X.shape[0]
 	self.Yvec=zeros((nsample,self.nout))
+	for idx,y in enumerate(self.Y):
+	    self.Yvec[idx,int(y)-1]=1
+
 	self.activ,self.initw = activ_type,initw
 	self.W=[] ##weights of the whole network
+	epsilon_init = 0.12
 	if self.initw=='Random':
 	    print("Random initializing weights across the neural network")
 	    for i in range(1,self.L):
 	      s_o=self.struc[i]
 	      s_i=self.struc[i-1]	
-	      self.W.append( np.random.rand(s_o,s_i+1)) ### added 1 due to the bias unit
+	      self.W.append( np.random.rand(s_o,s_i+1)*2.0*epsilon_init-epsilon_init) ### added 1 due to the bias unit
 	else:
 	    print("Preloading weights across the neural network")
 	    self.W.append(loadtxt('Theta1.txt'))
 	    self.W.append(loadtxt('Theta2.txt'))
-	self.W=self.unrollWeight(self.W)
 
     def printinfo(self):
           print ("~~~~~~~~~~INFO of Fully connected neural network~~~~~~~~~~") 
@@ -61,33 +64,62 @@ class conn_cc:
 	  wlen=s_o*(s_i+1)
 	  Weight.append(params[n:n+wlen].reshape(s_o,s_i+1))
 	  n+=wlen
-        for w in Weight:
-	    print w.shape
 	return Weight
 
     def Train(self,method):
-        return self.W
 	if method=='BFGS':
-	   nn_parms=self.unrollWeight(self.W)
+	   nn_params=self.unrollWeight(self.W)
 	   res=minimize(self.costfunc,nn_params,method='BFGS',jac=self.grad_eval,\
 		        tol=self.tol,options={'disp':True,'maxiter':self.Nit})
-	   self.W=res.x.reshape(-1,1)
+	   self.W=self.rollingWeight(res.x)
 	   print("Optimization status",res.message)
 	   print("# of iterations=",res.nit)
 
     def grad_eval(self,params):
-        return 1
+	if type(params[0])!=np.ndarray:
+	   print("Rolling back params into array to calculate gradient")
+	   weight=self.rollingWeight(params)
+	else:
+	   print("No need to roll back params into array to calculate gradient")
+	   weight=params
+	w_grad=[]
+	for w in weight:
+	    w_grad.append( zeros(w.shape))
+	#for i in range(self.nsample):
+	for i in range(1):
+	  ##1.performing forward first
+          source=X[i,:]
+	  a=[source]
+	  ab=[np.concatenate( (array([1]),source),axis=0)]
+	  for j in range(self.L-1): 
+	    if j==0:
+	       sb=np.concatenate( (array([1]),source),axis=0)
+	    else:
+	       sb=np.concatenate((array([1]),out),axis=0)
+	    z=np.dot(sb,weight[j].transpose())
+	    out=self.activation(z,self.activ)
+	    a.append(out)
+	    ab.append(np.concatenate( (array([1]),out),axis=0))
+	  ##2.performing backward to calculate delta
+	  Delta=[]
+	  for j in range(self.L,1,-1):
+	      if j==self.L:  
+	          dta=a[-1]-self.Yvec[i]    #print a[-1].shape,self.Yvec[i].shape#delta=a[-1]-self.Yvec
+	      else:
+	          dta=np.dot(weight[j-1].transpose(),Delta[-1])*ab[j-1]*(1.0-ab[j-1]) ##assuming sigmoid activation func  here
+		  dta=dta[1:]
+              Delta.append(dta)
+	  Delta=Delta[::-1]
+	  print Delta
 
     def costfunc(self,params):
     	cost=0.0
 	if type(params[0])!=np.ndarray:
-	   print("Rolling back params to calculate costs")
+	   print("Rolling back params to into array calculate costs")
 	   weight=self.rollingWeight(params)
 	else:
-	   print("No need to roll back params to calculate costs")
+	   print("No need to roll back params into array to calculate costs")
 	   weight=params
-	for idx,y in enumerate(self.Y):
-	    self.Yvec[idx,int(y)-1]=1
 	h=self.Forward_prop(weight,self.X)
 	cost=-1.0/self.nsample*np.trace( np.dot(log(h),self.Yvec.transpose())+np.dot( log(1.0-h),(1.0-self.Yvec).transpose()) )
 
@@ -112,10 +144,10 @@ class conn_cc:
 
     def Predict(self,params,X):
 	if type(params[0])!=np.ndarray:
-	   print("Rolling back params to predict label")
+	   print("Rolling back params into array to predict label")
 	   weight=self.rollingWeight(params)
 	else:
-	   print("No need to roll back params to predict label")
+	   print("No need to roll back params into array to predict label")
 	   weight=params
         out=self.Forward_prop(weight,X)
 	return argmax(out,axis=1)+1
@@ -138,7 +170,7 @@ if __name__=="__main__":
 	nout=int( max(Y))
 	nsample=X.shape[0]
 	print("nfeature=",nfeature,"nout=",nout,"nsample",nsample)
-        struc=[nfeature,25,19,nout]
+        struc=[nfeature,25,19,16,nout]
 	#mycnn=conn_cc(struc,X,Y,nout,0.01,1,C=1.0,activ_type='sigmoid')
 	mycnn=conn_cc(struc,X,Y,nout,0.01,1,C=1.0,activ_type='sigmoid',initw='Random')
 	mycnn.printinfo()
@@ -146,9 +178,7 @@ if __name__=="__main__":
 	mtd='BFGS'
 	mywgt=mycnn.Train(method=mtd)
 	mycnn.costfunc(mywgt)
-	ypred=mycnn.Predict(mywgt,X)
 	score=mycnn.score(mywgt,X,Y)
-	print('ypred=',ypred)
 	print ("Accuracy=",score )
 	t2=time.time()
 	print('running time:',t2-t1)
