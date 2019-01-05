@@ -20,16 +20,18 @@ def preview(df):
   
 if __name__=="__main__":
     t1=time.time()
+
     url='https://raw.githubusercontent.com/saunter999/datasets/master/score_admit.csv'
     df=pd.read_csv(url,header=None,names=['score1','score2','admit_status'])
 
     figure(1)
     preview(df)
    
-    X,Y,Nit,tol,alpha=df.values[:,:-1],df.values[:,-1],10,1e-6,0.3 
+    X,Y,Nit,tol,alpha=df.values[:,:-1],df.values[:,-1],10,1e-6,0.2 
     nsample=Y.shape[0]
-    mylogReg=LR(X,Y,C=0.01,batch_size=1)
-    mtd='SGD' 
+    mylogReg=LR(X,Y,C=0.01,batch_size=100)
+    mthls=['SGD','BFGS','Newton-CG']
+    mtd=mthls[0]
     print("~~~~~Training using "+mtd+"~~~~~")
     mylogReg.training(Nit,tol,alpha,method=mtd)
     
